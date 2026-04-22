@@ -85,9 +85,14 @@
             </h1>
             <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Gestión de Mesas</p>
         </div>
-        <div class="text-right">
-            <p class="text-[10px] text-gray-500 uppercase font-black mb-0.5">Recaudación Total</p>
-            <p id="globalTotal" class="text-xl font-black text-neon tracking-tight">$0</p>
+        <div class="flex items-center gap-6">
+            <button onclick="resetJornada()" class="hidden sm:block text-[10px] text-gray-500 border border-white/10 px-3 py-2 rounded-xl hover:bg-white/5 font-black uppercase tracking-widest transition-all">
+                Finalizar Jornada
+            </button>
+            <div class="text-right">
+                <p class="text-[10px] text-gray-500 uppercase font-black mb-0.5">Recaudación Total</p>
+                <p id="globalTotal" class="text-2xl font-black text-neon tracking-tight leading-none">0 Gs.</p>
+            </div>
         </div>
     </header>
 
@@ -178,6 +183,10 @@
         }
 
         // --- CORE ACTIONS ---
+        function formatCurrency(amount) {
+            return amount.toLocaleString('es-PY') + ' Gs.';
+        }
+
         function addTable() {
             const nameInput = document.getElementById('newTableName');
             const name = nameInput.value.trim();
@@ -186,7 +195,7 @@
             const newTable = {
                 id: Date.now().toString(),
                 name: name,
-                price: 1500, // Pre-configured default
+                price: 5000, 
                 tokens: []
             };
 
@@ -198,7 +207,7 @@
         }
 
         function deleteTable(id) {
-            if (confirm('¿Eliminar esta mesa definitivamente?')) {
+            if (confirm('¿ELIMINAR ESTA MESA? Esta acción quitará la mesa de la pantalla.')) {
                 state.tables = state.tables.filter(t => t.id !== id);
                 saveState();
                 render();
@@ -295,6 +304,15 @@
             }
         }
 
+        function resetJornada() {
+            if (confirm('¿FINALIZAR JORNADA? Se borrarán TODAS las mesas y la recaudación total volverá a cero. Esta acción es definitiva.')) {
+                state.tables = [];
+                saveState();
+                render();
+                vibrate();
+            }
+        }
+
         // --- SMART COLLECTION ---
         let currentTableForSelection = null;
         
@@ -324,7 +342,7 @@
             let html = `
                 <button onclick="collectByType('${tableId}', 'all')" class="w-full bg-neon text-black py-4 rounded-2xl font-black shadow-lg shadow-neon/10 flex justify-between px-6 items-center uppercase tracking-widest text-xs">
                     <span>Cobrar Todo</span>
-                    <span class="bg-black/10 px-2 py-1 rounded-lg text-[10px] font-black">$${(table.tokens.filter(t => !t.collected).length * table.price).toLocaleString()}</span>
+                    <span class="bg-black/10 px-2 py-1 rounded-lg text-[10px] font-black">${formatCurrency(table.tokens.filter(t => !t.collected).length * table.price)}</span>
                 </button>
                 <div class="h-px bg-white/5 my-2"></div>
             `;
@@ -333,8 +351,8 @@
                 const count = table.tokens.filter(t => !t.collected && (t.label || 'S/N') === initial).length;
                 html += `
                     <button onclick="collectByType('${tableId}', '${initial}')" class="w-full bg-[#2a2a2a] text-white py-4 rounded-2xl font-bold border border-white/5 flex justify-between px-6 items-center active:bg-neon active:text-black">
-                        <span>Solo ${initial === 'S/N' ? 'Sin Nombre' : 'Jugador ' + initial}</span>
-                        <span class="text-neon font-black text-sm">$${(count * table.price).toLocaleString()}</span>
+                        <span>Solo ${initial === 'S/S' ? 'Sin Nombre' : 'Jugador ' + initial}</span>
+                        <span class="text-neon font-black text-sm">${formatCurrency(count * table.price)}</span>
                     </button>
                 `;
             });
@@ -378,7 +396,7 @@
                 const collectedTokens = table.tokens.filter(t => t.collected).length;
                 return sum + (collectedTokens * table.price);
             }, 0);
-            document.getElementById('globalTotal').textContent = `$${total.toLocaleString()}`;
+            document.getElementById('globalTotal').textContent = formatCurrency(total);
         }
 
         function updateCardTotal(id) {
@@ -387,7 +405,7 @@
                 const activeTokens = table.tokens.filter(t => !t.collected);
                 const total = activeTokens.length * table.price;
                 const el = document.getElementById(`total-${id}`);
-                if (el) el.textContent = `$${total.toLocaleString()}`;
+                if (el) el.textContent = formatCurrency(total);
                 
                 // Breakdown
                 const breakdownEl = document.getElementById(`breakdown-${id}`);
@@ -402,7 +420,7 @@
                         const breakdownText = Object.entries(groups)
                             .map(([label, count]) => `<span class="bg-white/5 px-2 py-1 rounded-md">
                                 <span class="text-gray-500 font-black">${label}:</span> 
-                                <span class="text-neon font-bold">$${(count * table.price).toLocaleString()}</span>
+                                <span class="text-neon font-bold">${formatCurrency(count * table.price)}</span>
                             </span>`)
                             .join('');
                         breakdownEl.innerHTML = breakdownText;
@@ -486,14 +504,14 @@
                             </div>
                             <div class="flex items-center gap-3 mt-3">
                                 <div class="flex items-center bg-[#252525] rounded-xl px-3 py-2 border border-white/5 shadow-inner">
-                                    <span class="text-[10px] font-black text-gray-500 uppercase mr-2 tracking-tighter">Precio: $</span>
+                                    <span class="text-[10px] font-black text-gray-500 uppercase mr-2 tracking-tighter">Precio: Gs.</span>
                                     <input type="number" value="${table.price}" 
                                         onchange="updatePrice('${table.id}', this.value)"
-                                        class="bg-transparent w-16 text-sm font-black text-neon focus:outline-none">
+                                        class="bg-transparent w-24 text-sm font-black text-neon focus:outline-none">
                                 </div>
                             </div>
                         </div>
-                        <button onclick="resetTable('${table.id}')" class="p-2 text-gray-700 hover:text-red-500 transform active:scale-75 transition-all" title="Limpiar todo el historial">
+                        <button onclick="deleteTable('${table.id}')" class="p-2 text-gray-700 hover:text-red-500 transform active:scale-75 transition-all" title="Eliminar mesa">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
                         </button>
                     </div>
@@ -524,7 +542,7 @@
                         <div class="flex items-end justify-between">
                             <div>
                                 <p class="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Monto a Cobrar</p>
-                                <p id="total-${table.id}" class="text-3xl font-black text-neon tracking-tight">$${(table.tokens.filter(t => !t.collected).length * table.price).toLocaleString()}</p>
+                                <p id="total-${table.id}" class="text-3xl font-black text-neon tracking-tight">${formatCurrency(table.tokens.filter(t => !t.collected).length * table.price)}</p>
                                 <p id="count-${table.id}" class="text-[9px] text-gray-600 font-bold uppercase mt-1">Fichas Totales: ${table.tokens.length}</p>
                             </div>
                             <button onclick="clearTable('${table.id}')" class="bg-neon/10 text-neon px-5 py-3 rounded-xl font-bold text-xs border border-neon/20 active:bg-neon active:text-black transition-all uppercase tracking-widest">
