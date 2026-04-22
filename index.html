@@ -26,9 +26,33 @@
         .border-neon { border-color: var(--neon-green); }
         .card { background-color: var(--card-bg); border: 1px solid rgba(255,255,255,0.08); border-radius: 1.25rem; }
         .token-mark { font-family: 'Handlee', cursive, monospace; font-size: 1.75rem; font-weight: bold; color: var(--neon-green); letter-spacing: -1px; line-height: 1; transition: all 0.3s ease; }
-        .token-mark.collected { color: #555; text-decoration: line-through; opacity: 0.4; filter: grayscale(1); }
+        .token-mark.collected { color: #444; opacity: 0.5; filter: grayscale(1); }
         .labeled-mark { font-size: 0.85rem; color: #888; margin-left: 1px; font-family: 'Inter', sans-serif; font-weight: 600; }
-        .collected .labeled-mark { color: #444; }
+        .collected .labeled-mark { color: #333; }
+
+        .marker-stroke { 
+            position: relative; 
+            display: inline-flex; 
+            flex-wrap: wrap;
+            align-items: center; 
+            gap: 8px;
+            padding: 4px 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 0.75rem;
+        }
+        .marker-stroke::after { 
+            content: ''; 
+            position: absolute; 
+            top: 50%; 
+            left: 5%; 
+            width: 90%; 
+            height: 4px; 
+            background: rgba(255, 255, 255, 0.1); 
+            border-radius: 99px;
+            transform: translateY(-50%) rotate(-1deg);
+            pointer-events: none;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
         
         /* Smooth transitions */
         .animate-in { animation: fadeIn 0.3s ease-out; }
@@ -266,8 +290,8 @@
         // --- RENDER HELPERS ---
         function updateGlobalTotal() {
             const total = state.tables.reduce((sum, table) => {
-                const activeTokens = table.tokens.filter(t => !t.collected).length;
-                return sum + (activeTokens * table.price);
+                const collectedTokens = table.tokens.filter(t => t.collected).length;
+                return sum + (collectedTokens * table.price);
             }, 0);
             document.getElementById('globalTotal').textContent = `$${total.toLocaleString()}`;
         }
@@ -302,14 +326,30 @@
                 return;
             }
 
-            container.innerHTML = table.tokens.map(token => {
-                const collectedClass = token.collected ? 'collected' : '';
-                if (token.type === 'simple') {
-                    return `<span class="token-mark ${collectedClass}">|</span>`;
-                } else {
-                    return `<span class="token-mark ${collectedClass} inline-flex items-baseline">|<span class="labeled-mark">(${token.label})</span></span>`;
-                }
-            }).join(' ');
+            const paidTokens = table.tokens.filter(t => t.collected);
+            const activeTokens = table.tokens.filter(t => !t.collected);
+
+            let html = '';
+            
+            if (paidTokens.length > 0) {
+                html += `<div class="marker-stroke">`;
+                html += paidTokens.map(token => {
+                    if (token.type === 'simple') return `<span class="token-mark collected">|</span>`;
+                    return `<span class="token-mark collected inline-flex items-baseline">|<span class="labeled-mark">(${token.label})</span></span>`;
+                }).join('');
+                html += `</div>`;
+            }
+
+            if (activeTokens.length > 0) {
+                html += `<div class="flex flex-wrap items-center gap-x-3 gap-y-2 ml-2">`;
+                html += activeTokens.map(token => {
+                    if (token.type === 'simple') return `<span class="token-mark">|</span>`;
+                    return `<span class="token-mark inline-flex items-baseline">|<span class="labeled-mark">(${token.label})</span></span>`;
+                }).join('');
+                html += `</div>`;
+            }
+
+            container.innerHTML = html;
             container.scrollLeft = container.scrollWidth;
         }
 
