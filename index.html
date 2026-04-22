@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Pool Control - Fichas</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-green: #39ff14;
+            --bg-dark: #121212;
+            --card-bg: #1e1e1e;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: #e0e0e0;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+            min-height: 100vh;
+        }
+        .text-neon { color: var(--neon-green); text-shadow: 0 0 8px rgba(57, 255, 20, 0.4); }
+        .bg-neon { background-color: var(--neon-green); }
+        .border-neon { border-color: var(--neon-green); }
+        .card { background-color: var(--card-bg); border: 1px solid rgba(255,255,255,0.08); border-radius: 1.25rem; }
+        .token-mark { font-family: 'Handlee', cursive, monospace; font-size: 1.75rem; font-weight: bold; color: var(--neon-green); letter-spacing: -1px; line-height: 1; }
+        .labeled-mark { font-size: 0.85rem; color: #888; margin-left: 1px; font-family: 'Inter', sans-serif; font-weight: 600; }
+        
+        /* Smooth transitions */
+        .animate-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Haptic feedback simulation */
+        button:active { transform: scale(0.96); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="pb-safe-area">
+    <!-- Header -->
+    <header class="sticky top-0 z-40 bg-[#121212]/90 backdrop-blur-xl border-b border-white/5 px-6 py-5 flex justify-between items-center shadow-lg">
+        <div>
+            <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
+                <span class="w-2 h-2 bg-neon rounded-full animate-pulse"></span>
+                POOL <span class="text-neon">CONTROL</span>
+            </h1>
+            <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Gestión de Mesas</p>
+        </div>
+        <div class="text-right">
+            <p class="text-[10px] text-gray-500 uppercase font-black mb-0.5">Recaudación Total</p>
+            <p id="globalTotal" class="text-xl font-black text-neon tracking-tight">$0</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="app" class="p-4 flex flex-col gap-4 pb-28">
+        <!-- Tables will be injected here -->
+    </main>
+
+    <!-- FAB: Add Table -->
+    <button onclick="openAddTableModal()" class="fixed bottom-6 right-6 w-16 h-16 bg-neon text-black rounded-2xl shadow-[0_8px_30px_rgb(57,255,20,0.3)] flex items-center justify-center transition-all active:scale-90 z-50 group">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    </button>
+
+    <!-- Modal: Add Table -->
+    <div id="addTableModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+        <div class="bg-[#1e1e1e] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl animate-in">
+            <div class="bg-neon/10 w-12 h-12 rounded-2xl flex items-center justify-center mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--neon-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM21 9H3M21 15H3M12 3v18"/></svg>
+            </div>
+            <h3 class="text-2xl font-black mb-1">Nueva Mesa</h3>
+            <p class="text-gray-500 text-sm mb-6">Ingresa el nombre o número de la mesa.</p>
+            
+            <input id="newTableName" type="text" placeholder="Ej: Mesa VIP" class="w-full bg-[#2a2a2a] border border-white/5 rounded-2xl px-5 py-4 mb-8 focus:outline-none focus:border-neon text-lg font-bold placeholder:text-gray-600 transition-colors">
+            
+            <div class="flex gap-4">
+                <button onclick="closeAddTableModal()" class="flex-1 py-4 font-bold text-gray-500">Omitir</button>
+                <button onclick="addTable()" class="flex-1 bg-neon text-black py-4 rounded-2xl font-black shadow-lg shadow-neon/20">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Labeled Token -->
+    <div id="tokenModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+        <div class="bg-[#1e1e1e] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl text-center animate-in">
+            <h3 class="text-2xl font-black mb-2">Ficha con Inicial</h3>
+            <p class="text-gray-500 text-sm mb-8">Escribe una letra para identificar la ficha.</p>
+            
+            <input id="tokenInitial" type="text" maxlength="1" placeholder="?" class="w-24 h-24 uppercase text-center bg-[#2a2a2a] border border-white/5 rounded-3xl mb-8 focus:outline-none focus:border-neon text-4xl font-black text-neon transition-colors shadow-inner">
+            
+            <div class="flex gap-4">
+                <button onclick="closeTokenModal()" class="flex-1 py-4 font-bold text-gray-500">Cancelar</button>
+                <button onclick="confirmLabeledToken()" class="flex-1 bg-neon text-black py-4 rounded-2xl font-black shadow-lg shadow-neon/20 uppercase tracking-widest text-sm">Listo</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- STATE MANAGEMENT ---
+        let state = {
+            tables: []
+        };
+
+        const STORAGE_KEY = 'pool_control_v1';
+
+        function loadState() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                state = JSON.parse(saved);
+            } else {
+                // Initial example if empty
+                state.tables = [];
+            }
+            render();
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            updateGlobalTotal();
+        }
+
+        // --- CORE ACTIONS ---
+        function addTable() {
+            const nameInput = document.getElementById('newTableName');
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            const newTable = {
+                id: Date.now().toString(),
+                name: name,
+                price: 1500, // Pre-configured default
+                tokens: []
+            };
+
+            state.tables.unshift(newTable);
+            nameInput.value = '';
+            closeAddTableModal();
+            saveState();
+            render();
+        }
+
+        function deleteTable(id) {
+            if (confirm('¿Eliminar esta mesa definitivamente?')) {
+                state.tables = state.tables.filter(t => t.id !== id);
+                saveState();
+                render();
+            }
+        }
+
+        function updatePrice(id, newPrice) {
+            const table = state.tables.find(t => t.id === id);
+            if (table) {
+                table.price = Math.max(0, parseInt(newPrice) || 0);
+                saveState();
+                updateCardTotal(id);
+            }
+        }
+
+        function addSimpleToken(id) {
+            const table = state.tables.find(t => t.id === id);
+            if (table) {
+                table.tokens.push({ type: 'simple', timestamp: Date.now() });
+                saveState();
+                renderTableTokens(id);
+                updateCardTotal(id);
+                vibrate();
+            }
+        }
+
+        let currentTableForToken = null;
+        function openTokenModal(id) {
+            currentTableForToken = id;
+            document.getElementById('tokenModal').classList.remove('hidden');
+            const input = document.getElementById('tokenInitial');
+            input.value = '';
+            setTimeout(() => input.focus(), 100);
+        }
+
+        function closeTokenModal() {
+            document.getElementById('tokenModal').classList.add('hidden');
+        }
+
+        function confirmLabeledToken() {
+            const input = document.getElementById('tokenInitial');
+            const initial = input.value.toUpperCase().trim();
+            if (initial && currentTableForToken) {
+                const table = state.tables.find(t => t.id === currentTableForToken);
+                if (table) {
+                    table.tokens.push({ type: 'labeled', label: initial, timestamp: Date.now() });
+                    saveState();
+                    renderTableTokens(currentTableForToken);
+                    updateCardTotal(currentTableForToken);
+                    vibrate();
+                }
+            }
+            closeTokenModal();
+        }
+
+        function undoToken(id) {
+            const table = state.tables.find(t => t.id === id);
+            if (table && table.tokens.length > 0) {
+                table.tokens.pop();
+                saveState();
+                renderTableTokens(id);
+                updateCardTotal(id);
+            }
+        }
+
+        function clearTable(id) {
+            if (confirm('¿Cerrar esta tanda? Las marcas se borrarán.')) {
+                const table = state.tables.find(t => t.id === id);
+                if (table) {
+                    table.tokens = [];
+                    saveState();
+                    renderTableTokens(id);
+                    updateCardTotal(id);
+                }
+            }
+        }
+
+        function vibrate() {
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(5);
+            }
+        }
+
+        // --- RENDER HELPERS ---
+        function updateGlobalTotal() {
+            const total = state.tables.reduce((sum, table) => {
+                return sum + (table.tokens.length * table.price);
+            }, 0);
+            document.getElementById('globalTotal').textContent = `$${total.toLocaleString()}`;
+        }
+
+        function updateCardTotal(id) {
+            const table = state.tables.find(t => t.id === id);
+            if (table) {
+                const total = table.tokens.length * table.price;
+                const el = document.getElementById(`total-${id}`);
+                if (el) el.textContent = `$${total.toLocaleString()}`;
+                updateGlobalTotal();
+            }
+        }
+
+        function renderTableTokens(id) {
+            const table = state.tables.find(t => t.id === id);
+            const container = document.getElementById(`tokens-${id}`);
+            if (!table || !container) return;
+
+            if (table.tokens.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center w-full py-2 opacity-20">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+                        <span class="text-[10px] uppercase font-bold mt-1">Sin marcas</span>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = table.tokens.map(token => {
+                if (token.type === 'simple') {
+                    return `<span class="token-mark">|</span>`;
+                } else {
+                    return `<span class="token-mark inline-flex items-baseline">|<span class="labeled-mark">(${token.label})</span></span>`;
+                }
+            }).join(' ');
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            if (state.tables.length === 0) {
+                app.innerHTML = `
+                    <div class="flex flex-col items-center justify-center mt-32 text-center px-10">
+                        <div class="w-20 h-20 bg-neon/5 rounded-[2rem] flex items-center justify-center mb-6 animate-pulse">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--neon-green)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM21 9H3M21 15H3M12 3v18"/></svg>
+                        </div>
+                        <h2 class="text-xl font-bold mb-2">No hay mesas</h2>
+                        <p class="text-gray-500 text-sm leading-relaxed">Crea una mesa nueva con el botón de abajo para empezar a anotar.</p>
+                    </div>
+                `;
+                updateGlobalTotal();
+                return;
+            }
+
+            app.innerHTML = state.tables.map(table => `
+                <div class="card p-6 shadow-xl animate-in">
+                    <div class="flex justify-between items-start mb-5">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3">
+                                <h2 class="text-xl font-black text-white leading-none">${table.name}</h2>
+                                <span class="bg-neon/10 text-neon text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-neon/20">Activa</span>
+                            </div>
+                            <div class="flex items-center gap-3 mt-3">
+                                <div class="flex items-center bg-[#252525] rounded-xl px-3 py-2 border border-white/5 shadow-inner">
+                                    <span class="text-[10px] font-black text-gray-500 uppercase mr-2 tracking-tighter">Precio: $</span>
+                                    <input type="number" value="${table.price}" 
+                                        onchange="updatePrice('${table.id}', this.value)"
+                                        class="bg-transparent w-16 text-sm font-black text-neon focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="deleteTable('${table.id}')" class="p-2 text-gray-700 hover:text-red-500 transform active:scale-75 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+
+                    <div id="tokens-${table.id}" class="min-h-[84px] bg-black/40 rounded-2xl p-5 mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 border border-white/5 shadow-inner overflow-hidden">
+                        <!-- Tokens -->
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="undoToken('${table.id}')" class="w-14 h-14 rounded-2xl bg-[#252525] text-gray-400 flex items-center justify-center border border-white/5 shadow-lg active:bg-neon/5 active:text-neon transition-all" title="Deshacer">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                        </button>
+                        
+                        <button onclick="addSimpleToken('${table.id}')" class="flex-1 h-14 rounded-2xl bg-neon text-black font-black flex items-center justify-center gap-2 shadow-lg shadow-neon/20 uppercase tracking-widest text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            Ficha
+                        </button>
+
+                        <button onclick="openTokenModal('${table.id}')" class="w-14 h-14 rounded-2xl bg-[#252525] text-neon flex items-center justify-center border border-white/5 shadow-lg font-black text-xl hover:bg-neon/5 active:bg-neon active:text-black transition-all">
+                            A
+                        </button>
+                    </div>
+
+                    <div class="mt-6 pt-6 border-t border-white/5 flex items-end justify-between">
+                        <div>
+                            <p class="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Monto a Cobrar</p>
+                            <p id="total-${table.id}" class="text-3xl font-black text-neon tracking-tight">$${(table.tokens.length * table.price).toLocaleString()}</p>
+                        </div>
+                        <button onclick="clearTable('${table.id}')" class="bg-red-500/10 text-red-500 px-5 py-3 rounded-xl font-bold text-xs border border-red-500/20 active:bg-red-500 active:text-white transition-all uppercase tracking-widest">
+                            Cobrar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            state.tables.forEach(t => renderTableTokens(t.id));
+            updateGlobalTotal();
+        }
+
+        // --- UI HELPERS ---
+        function openAddTableModal() {
+            document.getElementById('addTableModal').classList.remove('hidden');
+            const input = document.getElementById('newTableName');
+            input.value = '';
+            setTimeout(() => input.focus(), 100);
+        }
+        function closeAddTableModal() {
+            document.getElementById('addTableModal').classList.add('hidden');
+        }
+
+        // --- INIT ---
+        document.addEventListener('DOMContentLoaded', loadState);
+
+        // Prevent body scroll when modal is open
+        const modals = ['addTableModal', 'tokenModal'];
+        modals.forEach(id => {
+            const observer = new MutationObserver(() => {
+                const isHidden = document.getElementById(id).classList.contains('hidden');
+                document.body.style.overflow = isHidden ? '' : 'hidden';
+            });
+            observer.observe(document.getElementById(id), { attributes: true, attributeFilter: ['class'] });
+        });
+    </script>
+</body>
+</html>
