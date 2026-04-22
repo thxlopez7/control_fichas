@@ -78,11 +78,15 @@
 <body class="pb-safe-area">
     <!-- Header -->
     <header class="sticky top-0 z-40 bg-[#121212]/90 backdrop-blur-xl border-b border-white/5 px-6 py-5 flex justify-between items-center shadow-lg">
-        <div>
-            <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
-                <span class="w-2 h-2 bg-neon rounded-full animate-pulse"></span>
-                POOL <span class="text-neon">CONTROL</span>
-            </h1>
+            <div class="flex items-center gap-2">
+                <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
+                    <span class="w-2 h-2 bg-neon rounded-full animate-pulse"></span>
+                    POOL <span class="text-neon">CONTROL</span>
+                </h1>
+                <button onclick="showHistory()" class="p-2 text-gray-500 hover:text-neon transition-colors" title="Ver jornada anterior">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </button>
+            </div>
             <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Gestión de Mesas</p>
         </div>
         <div class="flex items-center gap-6">
@@ -150,6 +154,32 @@
             </div>
             
             <button onclick="closeSelectionModal()" class="w-full py-4 font-bold text-gray-500 text-sm uppercase tracking-widest">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal: History Resumen -->
+    <div id="historyModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+        <div class="bg-[#1e1e1e] w-full max-w-sm rounded-[2rem] p-8 border border-white/10 shadow-2xl animate-in text-center">
+            <div class="flex justify-center mb-6">
+                <div class="w-16 h-16 bg-neon/10 rounded-full flex items-center justify-center text-neon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+            </div>
+            <h3 class="text-2xl font-black mb-2">Jornada Anterior</h3>
+            <p id="historyDate" class="text-gray-500 text-xs mb-8 uppercase tracking-widest font-bold">Sin datos</p>
+            
+            <div class="grid grid-cols-2 gap-4 mb-10">
+                <div class="bg-[#2a2a2a] p-5 rounded-3xl border border-white/5 shadow-inner">
+                    <p class="text-[9px] text-gray-500 uppercase font-black mb-1">Total Fichas</p>
+                    <p id="historyFichas" class="text-2xl font-black text-white">0</p>
+                </div>
+                <div class="bg-[#2a2a2a] p-5 rounded-3xl border border-white/5 shadow-inner">
+                    <p class="text-[9px] text-gray-500 uppercase font-black mb-1">Recaudación</p>
+                    <p id="historyTotal" class="text-xl font-black text-neon leading-none mt-1">0 Gs.</p>
+                </div>
+            </div>
+            
+            <button onclick="closeHistoryModal()" class="w-full bg-neon text-black py-4 rounded-2xl font-black shadow-lg shadow-neon/20 uppercase tracking-widest text-sm">Cerrar</button>
         </div>
     </div>
 
@@ -305,12 +335,49 @@
         }
 
         function resetJornada() {
-            if (confirm('¿FINALIZAR JORNADA? Se borrarán TODAS las mesas y la recaudación total volverá a cero. Esta acción es definitiva.')) {
+            if (confirm('¿FINALIZAR JORNADA? Se guardará un resumen y se eliminarán todas las mesas para mañana. Esta acción es definitiva.')) {
+                saveJornadaSummary();
                 state.tables = [];
                 saveState();
                 render();
                 vibrate();
             }
+        }
+
+        function saveJornadaSummary() {
+            const totalFichas = state.tables.reduce((sum, t) => sum + t.tokens.length, 0);
+            const totalRecaudacion = state.tables.reduce((sum, t) => {
+                const collectedCount = t.tokens.filter(tk => tk.collected).length;
+                return sum + (collectedCount * t.price);
+            }, 0);
+
+            const summary = {
+                date: new Date().toLocaleString('es-PY', { 
+                    day: '2-digit', month: '2-digit', year: 'numeric', 
+                    hour: '2-digit', minute: '2-digit' 
+                }),
+                fichas: totalFichas,
+                total: totalRecaudacion
+            };
+
+            localStorage.setItem('ultima_jornada', JSON.stringify(summary));
+        }
+
+        function showHistory() {
+            const summary = JSON.parse(localStorage.getItem('ultima_jornada'));
+            if (!summary) {
+                alert('No hay una jornada anterior registrada.');
+                return;
+            }
+
+            document.getElementById('historyDate').textContent = summary.date;
+            document.getElementById('historyFichas').textContent = summary.fichas;
+            document.getElementById('historyTotal').textContent = formatCurrency(summary.total);
+            document.getElementById('historyModal').classList.remove('hidden');
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.add('hidden');
         }
 
         // --- SMART COLLECTION ---
@@ -572,7 +639,7 @@
         document.addEventListener('DOMContentLoaded', loadState);
 
         // Prevent body scroll when modal is open
-        const modals = ['addTableModal', 'tokenModal', 'selectionModal'];
+        const modals = ['addTableModal', 'tokenModal', 'selectionModal', 'historyModal'];
         modals.forEach(id => {
             const observer = new MutationObserver(() => {
                 const isHidden = document.getElementById(id).classList.contains('hidden');
