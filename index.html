@@ -25,8 +25,10 @@
         .bg-neon { background-color: var(--neon-green); }
         .border-neon { border-color: var(--neon-green); }
         .card { background-color: var(--card-bg); border: 1px solid rgba(255,255,255,0.08); border-radius: 1.25rem; }
-        .token-mark { font-family: 'Handlee', cursive, monospace; font-size: 1.75rem; font-weight: bold; color: var(--neon-green); letter-spacing: -1px; line-height: 1; }
+        .token-mark { font-family: 'Handlee', cursive, monospace; font-size: 1.75rem; font-weight: bold; color: var(--neon-green); letter-spacing: -1px; line-height: 1; transition: all 0.3s ease; }
+        .token-mark.collected { color: #555; text-decoration: line-through; opacity: 0.4; filter: grayscale(1); }
         .labeled-mark { font-size: 0.85rem; color: #888; margin-left: 1px; font-family: 'Inter', sans-serif; font-weight: 600; }
+        .collected .labeled-mark { color: #444; }
         
         /* Smooth transitions */
         .animate-in { animation: fadeIn 0.3s ease-out; }
@@ -120,8 +122,13 @@
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 state = JSON.parse(saved);
+                // Migration: Ensure all tokens have 'collected' property
+                state.tables.forEach(table => {
+                    table.tokens.forEach(token => {
+                        if (token.collected === undefined) token.collected = false;
+                    });
+                });
             } else {
-                // Initial example if empty
                 state.tables = [];
             }
             render();
@@ -172,7 +179,7 @@
         function addSimpleToken(id) {
             const table = state.tables.find(t => t.id === id);
             if (table) {
-                table.tokens.push({ type: 'simple', timestamp: Date.now() });
+                table.tokens.push({ type: 'simple', collected: false, timestamp: Date.now() });
                 saveState();
                 renderTableTokens(id);
                 updateCardTotal(id);
@@ -199,7 +206,7 @@
             if (initial && currentTableForToken) {
                 const table = state.tables.find(t => t.id === currentTableForToken);
                 if (table) {
-                    table.tokens.push({ type: 'labeled', label: initial, timestamp: Date.now() });
+                    table.tokens.push({ type: 'labeled', label: initial, collected: false, timestamp: Date.now() });
                     saveState();
                     renderTableTokens(currentTableForToken);
                     updateCardTotal(currentTableForToken);
@@ -212,15 +219,34 @@
         function undoToken(id) {
             const table = state.tables.find(t => t.id === id);
             if (table && table.tokens.length > 0) {
-                table.tokens.pop();
+                // Only undo if the last token is NOT collected
+                const lastToken = table.tokens[table.tokens.length - 1];
+                if (!lastToken.collected) {
+                    table.tokens.pop();
+                    saveState();
+                    renderTableTokens(id);
+                    updateCardTotal(id);
+                } else {
+                    // Optional: Visual feedback that we can't undo collected tokens
+                    vibrate();
+                }
+            }
+        }
+
+        function clearTable(id) {
+            const table = state.tables.find(t => t.id === id);
+            if (!table || table.tokens.filter(t => !t.collected).length === 0) return;
+            
+            if (confirm('¿Marcar tanda actual como cobrada? Las marcas permanecerán en el historial.')) {
+                table.tokens.forEach(t => t.collected = true);
                 saveState();
                 renderTableTokens(id);
                 updateCardTotal(id);
             }
         }
 
-        function clearTable(id) {
-            if (confirm('¿Cerrar esta tanda? Las marcas se borrarán.')) {
+        function resetTable(id) {
+            if (confirm('¿LIMPIAR TODO? Esto borrará definitivamente el historial y fichas activas de esta mesa.')) {
                 const table = state.tables.find(t => t.id === id);
                 if (table) {
                     table.tokens = [];
@@ -240,7 +266,8 @@
         // --- RENDER HELPERS ---
         function updateGlobalTotal() {
             const total = state.tables.reduce((sum, table) => {
-                return sum + (table.tokens.length * table.price);
+                const activeTokens = table.tokens.filter(t => !t.collected).length;
+                return sum + (activeTokens * table.price);
             }, 0);
             document.getElementById('globalTotal').textContent = `$${total.toLocaleString()}`;
         }
@@ -248,9 +275,14 @@
         function updateCardTotal(id) {
             const table = state.tables.find(t => t.id === id);
             if (table) {
-                const total = table.tokens.length * table.price;
+                const activeTokens = table.tokens.filter(t => !t.collected).length;
+                const total = activeTokens * table.price;
                 const el = document.getElementById(`total-${id}`);
                 if (el) el.textContent = `$${total.toLocaleString()}`;
+                
+                const countEl = document.getElementById(`count-${id}`);
+                if (countEl) countEl.textContent = `Fichas Totales: ${table.tokens.length}`;
+                
                 updateGlobalTotal();
             }
         }
@@ -271,12 +303,14 @@
             }
 
             container.innerHTML = table.tokens.map(token => {
+                const collectedClass = token.collected ? 'collected' : '';
                 if (token.type === 'simple') {
-                    return `<span class="token-mark">|</span>`;
+                    return `<span class="token-mark ${collectedClass}">|</span>`;
                 } else {
-                    return `<span class="token-mark inline-flex items-baseline">|<span class="labeled-mark">(${token.label})</span></span>`;
+                    return `<span class="token-mark ${collectedClass} inline-flex items-baseline">|<span class="labeled-mark">(${token.label})</span></span>`;
                 }
             }).join(' ');
+            container.scrollLeft = container.scrollWidth;
         }
 
         function render() {
@@ -312,7 +346,7 @@
                                 </div>
                             </div>
                         </div>
-                        <button onclick="deleteTable('${table.id}')" class="p-2 text-gray-700 hover:text-red-500 transform active:scale-75 transition-all">
+                        <button onclick="resetTable('${table.id}')" class="p-2 text-gray-700 hover:text-red-500 transform active:scale-75 transition-all" title="Limpiar todo el historial">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
                         </button>
                     </div>
@@ -339,9 +373,10 @@
                     <div class="mt-6 pt-6 border-t border-white/5 flex items-end justify-between">
                         <div>
                             <p class="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Monto a Cobrar</p>
-                            <p id="total-${table.id}" class="text-3xl font-black text-neon tracking-tight">$${(table.tokens.length * table.price).toLocaleString()}</p>
+                            <p id="total-${table.id}" class="text-3xl font-black text-neon tracking-tight">$${(table.tokens.filter(t => !t.collected).length * table.price).toLocaleString()}</p>
+                            <p id="count-${table.id}" class="text-[9px] text-gray-600 font-bold uppercase mt-1">Fichas Totales: ${table.tokens.length}</p>
                         </div>
-                        <button onclick="clearTable('${table.id}')" class="bg-red-500/10 text-red-500 px-5 py-3 rounded-xl font-bold text-xs border border-red-500/20 active:bg-red-500 active:text-white transition-all uppercase tracking-widest">
+                        <button onclick="clearTable('${table.id}')" class="bg-neon/10 text-neon px-5 py-3 rounded-xl font-bold text-xs border border-neon/20 active:bg-neon active:text-black transition-all uppercase tracking-widest">
                             Cobrar
                         </button>
                     </div>
