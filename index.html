@@ -134,6 +134,20 @@
         </div>
     </div>
 
+    <!-- Modal: Selective Collection -->
+    <div id="selectionModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+        <div class="bg-[#1e1e1e] w-full max-w-sm rounded-t-[2rem] sm:rounded-[2rem] p-8 border-x border-t sm:border border-white/10 shadow-2xl animate-in">
+            <h3 class="text-2xl font-black mb-2">¿Qué quieres cobrar?</h3>
+            <p class="text-gray-500 text-sm mb-6">Selecciona el jugador o cobra todo junto.</p>
+            
+            <div id="selectionOptions" class="flex flex-col gap-3 mb-8">
+                <!-- Buttons injected here -->
+            </div>
+            
+            <button onclick="closeSelectionModal()" class="w-full py-4 font-bold text-gray-500 text-sm uppercase tracking-widest">Cancelar</button>
+        </div>
+    </div>
+
     <script>
         // --- STATE MANAGEMENT ---
         let state = {
@@ -281,6 +295,77 @@
             }
         }
 
+        // --- SMART COLLECTION ---
+        let currentTableForSelection = null;
+        
+        function clearTable(id) {
+            const table = state.tables.find(t => t.id === id);
+            if (!table) return;
+            
+            const activeTokens = table.tokens.filter(t => !t.collected);
+            if (activeTokens.length === 0) return;
+
+            const initials = [...new Set(activeTokens.map(t => t.label || 'S/N'))];
+            
+            if (initials.length > 1) {
+                openSelectionModal(id, initials);
+            } else {
+                if (confirm('¿Marcar tanda como cobrada?')) {
+                    collectByType(id, 'all');
+                }
+            }
+        }
+
+        function openSelectionModal(tableId, initials) {
+            currentTableForSelection = tableId;
+            const container = document.getElementById('selectionOptions');
+            const table = state.tables.find(t => t.id === tableId);
+            
+            let html = `
+                <button onclick="collectByType('${tableId}', 'all')" class="w-full bg-neon text-black py-4 rounded-2xl font-black shadow-lg shadow-neon/10 flex justify-between px-6 items-center uppercase tracking-widest text-xs">
+                    <span>Cobrar Todo</span>
+                    <span class="bg-black/10 px-2 py-1 rounded-lg text-[10px] font-black">$${(table.tokens.filter(t => !t.collected).length * table.price).toLocaleString()}</span>
+                </button>
+                <div class="h-px bg-white/5 my-2"></div>
+            `;
+
+            initials.forEach(initial => {
+                const count = table.tokens.filter(t => !t.collected && (t.label || 'S/N') === initial).length;
+                html += `
+                    <button onclick="collectByType('${tableId}', '${initial}')" class="w-full bg-[#2a2a2a] text-white py-4 rounded-2xl font-bold border border-white/5 flex justify-between px-6 items-center active:bg-neon active:text-black">
+                        <span>Solo ${initial === 'S/N' ? 'Sin Nombre' : 'Jugador ' + initial}</span>
+                        <span class="text-neon font-black text-sm">$${(count * table.price).toLocaleString()}</span>
+                    </button>
+                `;
+            });
+
+            container.innerHTML = html;
+            document.getElementById('selectionModal').classList.remove('hidden');
+        }
+
+        function closeSelectionModal() {
+            document.getElementById('selectionModal').classList.add('hidden');
+        }
+
+        function collectByType(tableId, type) {
+            const table = state.tables.find(t => t.id === tableId);
+            if (!table) return;
+
+            table.tokens.forEach(token => {
+                if (!token.collected) {
+                    if (type === 'all' || (token.label || 'S/N') === type) {
+                        token.collected = true;
+                    }
+                }
+            });
+
+            closeSelectionModal();
+            saveState();
+            renderTableTokens(tableId);
+            updateCardTotal(tableId);
+            vibrate();
+        }
+
         function vibrate() {
             if (window.navigator && window.navigator.vibrate) {
                 window.navigator.vibrate(5);
@@ -299,11 +384,33 @@
         function updateCardTotal(id) {
             const table = state.tables.find(t => t.id === id);
             if (table) {
-                const activeTokens = table.tokens.filter(t => !t.collected).length;
-                const total = activeTokens * table.price;
+                const activeTokens = table.tokens.filter(t => !t.collected);
+                const total = activeTokens.length * table.price;
                 const el = document.getElementById(`total-${id}`);
                 if (el) el.textContent = `$${total.toLocaleString()}`;
                 
+                // Breakdown
+                const breakdownEl = document.getElementById(`breakdown-${id}`);
+                if (breakdownEl) {
+                    if (activeTokens.length > 0) {
+                        const groups = activeTokens.reduce((acc, t) => {
+                            const label = t.label || 'S/N';
+                            acc[label] = (acc[label] || 0) + 1;
+                            return acc;
+                        }, {});
+                        
+                        const breakdownText = Object.entries(groups)
+                            .map(([label, count]) => `<span class="bg-white/5 px-2 py-1 rounded-md">
+                                <span class="text-gray-500 font-black">${label}:</span> 
+                                <span class="text-neon font-bold">$${(count * table.price).toLocaleString()}</span>
+                            </span>`)
+                            .join('');
+                        breakdownEl.innerHTML = breakdownText;
+                    } else {
+                        breakdownEl.innerHTML = '';
+                    }
+                }
+
                 const countEl = document.getElementById(`count-${id}`);
                 if (countEl) countEl.textContent = `Fichas Totales: ${table.tokens.length}`;
                 
@@ -341,7 +448,7 @@
             }
 
             if (activeTokens.length > 0) {
-                html += `<div class="flex flex-wrap items-center gap-x-3 gap-y-2 ml-2">`;
+                html += `<div class="flex flex-wrap items-center gap-x-3 gap-y-2 ml-6 pl-4 border-l-2 border-white/5">`;
                 html += activeTokens.map(token => {
                     if (token.type === 'simple') return `<span class="token-mark">|</span>`;
                     return `<span class="token-mark inline-flex items-baseline">|<span class="labeled-mark">(${token.label})</span></span>`;
@@ -410,15 +517,20 @@
                         </button>
                     </div>
 
-                    <div class="mt-6 pt-6 border-t border-white/5 flex items-end justify-between">
-                        <div>
-                            <p class="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Monto a Cobrar</p>
-                            <p id="total-${table.id}" class="text-3xl font-black text-neon tracking-tight">$${(table.tokens.filter(t => !t.collected).length * table.price).toLocaleString()}</p>
-                            <p id="count-${table.id}" class="text-[9px] text-gray-600 font-bold uppercase mt-1">Fichas Totales: ${table.tokens.length}</p>
+                    <div class="mt-6 pt-6 border-t border-white/5 flex flex-col gap-4">
+                        <div id="breakdown-${table.id}" class="flex flex-wrap gap-2 text-[10px] uppercase font-bold tracking-tighter">
+                            <!-- Breakdown by player -->
                         </div>
-                        <button onclick="clearTable('${table.id}')" class="bg-neon/10 text-neon px-5 py-3 rounded-xl font-bold text-xs border border-neon/20 active:bg-neon active:text-black transition-all uppercase tracking-widest">
-                            Cobrar
-                        </button>
+                        <div class="flex items-end justify-between">
+                            <div>
+                                <p class="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Monto a Cobrar</p>
+                                <p id="total-${table.id}" class="text-3xl font-black text-neon tracking-tight">$${(table.tokens.filter(t => !t.collected).length * table.price).toLocaleString()}</p>
+                                <p id="count-${table.id}" class="text-[9px] text-gray-600 font-bold uppercase mt-1">Fichas Totales: ${table.tokens.length}</p>
+                            </div>
+                            <button onclick="clearTable('${table.id}')" class="bg-neon/10 text-neon px-5 py-3 rounded-xl font-bold text-xs border border-neon/20 active:bg-neon active:text-black transition-all uppercase tracking-widest">
+                                Cobrar
+                            </button>
+                        </div>
                     </div>
                 </div>
             `).join('');
@@ -442,7 +554,7 @@
         document.addEventListener('DOMContentLoaded', loadState);
 
         // Prevent body scroll when modal is open
-        const modals = ['addTableModal', 'tokenModal'];
+        const modals = ['addTableModal', 'tokenModal', 'selectionModal'];
         modals.forEach(id => {
             const observer = new MutationObserver(() => {
                 const isHidden = document.getElementById(id).classList.contains('hidden');
